@@ -22,8 +22,6 @@ BOOL GetProcessInfo(DWORD processId, ProcessInformation* processInfo) {
 	WCHAR szFileName[MAX_PATH];
 	WCHAR szFilePath[MAX_PATH];
 
-	HMODULE hBaseMode;
-	DWORD cbBaseNeeded;
 
 	ZeroMemory(szFileName, MAX_PATH);
 	ZeroMemory(szFilePath, MAX_PATH);
@@ -36,52 +34,49 @@ BOOL GetProcessInfo(DWORD processId, ProcessInformation* processInfo) {
 		return FALSE;
 	}
 
-	if (EnumProcessModules(hProcess, &hBaseMode, sizeof(hBaseMode),
-		&cbBaseNeeded))
-	{
-		GetModuleBaseName(hProcess, NULL, szFileName, sizeof(szFileName) / sizeof(WCHAR));
+	GetModuleBaseName(hProcess, NULL, szFileName, sizeof(szFileName) / sizeof(WCHAR));
 
-		GetModuleFileNameEx(hProcess, NULL, szFilePath, sizeof(szFilePath) / sizeof(WCHAR));
+	GetModuleFileNameEx(hProcess, NULL, szFilePath, sizeof(szFilePath) / sizeof(WCHAR));
 
-		processInfo->processBaseName = std::wstring(szFileName);
-		processInfo->processPath = std::wstring(szFilePath);
+	processInfo->processBaseName = std::wstring(szFileName);
+	processInfo->processPath = std::wstring(szFilePath);
 
 
-		UINT dwBytes, cbTranslate;
-		LANGANDCODEPAGE* lpTranslate;
-		DWORD dwFileInfoSize = GetFileVersionInfoSize(szFilePath, (DWORD*)&dwBytes);
-		if (dwFileInfoSize > 0) {
-			LPVOID lpData = (LPVOID)malloc(dwFileInfoSize);
-			if (lpData) {
-				ZeroMemory(lpData, dwFileInfoSize);
-				if (GetFileVersionInfo(szFilePath, 0, dwFileInfoSize, lpData)) {
-					VerQueryValue(lpData, L"\\VarFileInfo\\Translation",
-						(LPVOID*)&lpTranslate, &cbTranslate);
+	UINT dwBytes, cbTranslate;
+	LANGANDCODEPAGE* lpTranslate;
+	DWORD dwFileInfoSize = GetFileVersionInfoSize(szFilePath, (DWORD*)&dwBytes);
+	if (dwFileInfoSize > 0) {
+		LPVOID lpData = (LPVOID)malloc(dwFileInfoSize);
+		if (lpData) {
+			ZeroMemory(lpData, dwFileInfoSize);
+			if (GetFileVersionInfo(szFilePath, 0, dwFileInfoSize, lpData)) {
+				VerQueryValue(lpData, L"\\VarFileInfo\\Translation",
+					(LPVOID*)&lpTranslate, &cbTranslate);
 
-					WCHAR strSubBlock[MAX_PATH] = { 0 };
-					WCHAR* lpBuffer;
+				WCHAR strSubBlock[MAX_PATH] = { 0 };
+				WCHAR* lpBuffer;
 
-					for (int i = 0; i < (cbTranslate / sizeof(struct LANGANDCODEPAGE)); i++)
-					{
-						StringCchPrintf(strSubBlock, 50,
-							L"\\StringFileInfo\\%04x%04x\\FileDescription",
-							lpTranslate[i].wLanguage,
-							lpTranslate[i].wCodePage);
-						VerQueryValue(lpData,
-							strSubBlock,
-							(void**)&lpBuffer,
-							&dwBytes);
+				for (int i = 0; i < (cbTranslate / sizeof(struct LANGANDCODEPAGE)); i++)
+				{
+					StringCchPrintf(strSubBlock, 50,
+						L"\\StringFileInfo\\%04x%04x\\FileDescription",
+						lpTranslate[i].wLanguage,
+						lpTranslate[i].wCodePage);
+					VerQueryValue(lpData,
+						strSubBlock,
+						(void**)&lpBuffer,
+						&dwBytes);
 
-						if (dwBytes > 0 && lpBuffer && lstrlenW(lpBuffer) > 0) {
-							processInfo->processDisplayName = std::wstring(lpBuffer);
-						}
-						break;
+					if (dwBytes > 0 && lpBuffer && lstrlenW(lpBuffer) > 0) {
+						processInfo->processDisplayName = std::wstring(lpBuffer);
 					}
+					break;
 				}
-				free(lpData);
 			}
+			free(lpData);
 		}
 	}
+	
 	CloseHandle(hProcess);
 
 	return TRUE;
